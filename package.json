@@ -12,6 +12,6 @@
     "discord.js": "^14.0.0",
     "dotenv": "^16.0.0",
     "@discordjs/voice": "^0.19.0",
-    "yt-dlp": "^2026.9.5"
+    "youtube-dl-exec": "^3.1.15"
   }
 }
