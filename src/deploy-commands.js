@@ -6,6 +6,8 @@ const reasonOption = (builder) => builder.addStringOption(o => o.setName("reason
 
 const commands = [
   new SlashCommandBuilder().setName("ping").setDescription("Check EMOX latency"),
+  new SlashCommandBuilder().setName("gfx").setDescription("Get graphic design advice").addStringOption(o=>o.setName("topic").setDescription("e.g. thumbnail, logo, banner, overlay").setRequired(false)),
+  new SlashCommandBuilder().setName("gaming").setDescription("Get gaming advice").addStringOption(o=>o.setName("topic").setDescription("e.g. FPS, sensitivity, streaming").setRequired(false)),
   new SlashCommandBuilder().setName("help").setDescription("Show EMOX features"),
   new SlashCommandBuilder().setName("serverinfo").setDescription("Show server information"),
   new SlashCommandBuilder().setName("userinfo").setDescription("Show user information").addUserOption(o=>o.setName("user").setDescription("User").setRequired(false)),
