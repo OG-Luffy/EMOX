@@ -12,7 +12,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
-const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
+const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior, StreamType } = require("@discordjs/voice");
 const youtubedl = require("youtube-dl-exec");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
@@ -151,7 +151,7 @@ client.on(Events.MessageCreate, async (message) => {
       }
       connection.subscribe(player);
 
-      const resource = createAudioResource(String(audioUrl).trim());
+      const resource = createAudioResource(String(audioUrl).trim(), { inputType: StreamType.WebmOpus });
       player.play(resource);
 
       return message.reply(`🎵 Now playing: **${title}**`);
