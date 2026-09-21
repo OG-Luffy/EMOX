@@ -26,7 +26,7 @@ const saveData = () => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)
 
 const data = loadData();
 const cooldowns = new Map();
-const giveaways = new Map();
+const giveaways = new Map();\nconst spamTracker = new Map();
 
 const client = new Client({
   intents: [
@@ -38,7 +38,7 @@ const client = new Client({
 });
 
 const guildData = (guildId) => {
-  data[guildId] ??= { warnings: {}, xp: {}, economy: {}, welcomeChannel: null, logChannel: null };
+  data[guildId] ??= { warnings: {}, xp: {}, economy: {}, welcomeChannel: null, logChannel: null, automod: false, lastDaily: {}, lastWork: {} };
   return data[guildId];
 };
 
@@ -72,6 +72,18 @@ client.on(Events.GuildMemberAdd, async (member) => {
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
   const cfg = guildData(message.guild.id);
+
+  if (cfg.automod && !message.member?.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    const spamKey = `${message.guild.id}:${message.author.id}`;
+    const timestamps = (spamTracker.get(spamKey) || []).filter(t => Date.now() - t < 6000);
+    timestamps.push(Date.now());
+    spamTracker.set(spamKey, timestamps);
+    if (timestamps.length >= 6) {
+      await message.delete().catch(() => {});
+      await log(message.guild, `AUTOMOD: removed spam from ${message.author.tag}`);
+      return;
+    }
+  }
   const key = `${message.guild.id}:${message.author.id}`;
   const now = Date.now();
   if ((cooldowns.get(key) || 0) > now) return;
@@ -169,6 +181,70 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (commandName === "timeout") await target.timeout(interaction.options.getInteger("minutes", true) * 60000, reason);
       await log(guild, `${commandName.toUpperCase()}: ${user.tag} — ${reason}`);
       return interaction.reply({ content: `✅ ${user.tag} has been ${commandName === "timeout" ? "timed out" : commandName + "ed"}.` });
+    }
+
+    if (commandName === "warnings") {
+      const user = interaction.options.getUser("user", true);
+      const cfg = guildData(guild.id);
+      const list = cfg.warnings[user.id] || [];
+      if (!list.length) return interaction.reply({ content: `✅ **${user.tag}** has no warnings.` });
+      const text = list.map((w, i) => `**#${i + 1}** — ${w.reason} <t:${Math.floor(w.at / 1000)}:R>`).join("\n");
+      return interaction.reply({ embeds: [new EmbedBuilder().setTitle(`⚠️ Warnings • ${user.tag}`).setDescription(text.slice(0, 3900))] });
+    }
+
+    if (commandName === "clearwarnings") {
+      if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction, "You need moderation permissions.");
+      const user = interaction.options.getUser("user", true);
+      const cfg = guildData(guild.id);
+      delete cfg.warnings[user.id];
+      saveData();
+      await log(guild, `CLEARED WARNINGS: ${user.tag}`);
+      return interaction.reply({ content: `✅ Cleared warnings for **${user.tag}**.` });
+    }
+
+    if (commandName === "automod") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server permission.");
+      const enabled = interaction.options.getBoolean("enabled", true);
+      guildData(guild.id).automod = enabled;
+      saveData();
+      return interaction.reply({ content: `🛡️ EMOX AutoMod is now **${enabled ? "ON" : "OFF"}**.` });
+    }
+
+    if (commandName === "leaderboard") {
+      const cfg = guildData(guild.id);
+      const rows = Object.entries(cfg.xp).sort((a,b) => b[1] - a[1]).slice(0, 10);
+      const text = rows.length ? rows.map(([id, xp], i) => `${i + 1}. <@${id}> — **${xp} XP**`).join("\n") : "No XP data yet.";
+      return interaction.reply({ embeds: [new EmbedBuilder().setTitle("🏆 EMOX XP Leaderboard").setDescription(text)] });
+    }
+
+    if (commandName === "work") {
+      const cfg = guildData(guild.id);
+      const last = cfg.lastWork[interaction.user.id] || 0;
+      if (Date.now() - last < 3600000) return replyError(interaction, "You can work again in about an hour.");
+      const earned = Math.floor(Math.random() * 151) + 100;
+      cfg.economy[interaction.user.id] = (cfg.economy[interaction.user.id] ?? 100) + earned;
+      cfg.lastWork[interaction.user.id] = Date.now();
+      saveData();
+      return interaction.reply({ content: `💼 You worked and earned **${earned} coins**!` });
+    }
+
+    if (commandName === "pay") {
+      const target = interaction.options.getUser("user", true);
+      const amount = interaction.options.getInteger("amount", true);
+      if (target.bot || target.id === interaction.user.id) return replyError(interaction, "Choose another human user.");
+      const cfg = guildData(guild.id);
+      const from = cfg.economy[interaction.user.id] ?? 100;
+      if (from < amount) return replyError(interaction, "You don't have enough coins.");
+      cfg.economy[interaction.user.id] = from - amount;
+      cfg.economy[target.id] = (cfg.economy[target.id] ?? 100) + amount;
+      saveData();
+      return interaction.reply({ content: `💸 Sent **${amount} coins** to **${target.tag}**.` });
+    }
+
+    if (commandName === "8ball") {
+      const answers = ["Yes.", "Definitely.", "Probably.", "Ask again later.", "Maybe.", "Unlikely.", "No."];
+      const question = interaction.options.getString("question", true);
+      return interaction.reply({ content: `🎱 **${question}**\n> ${answers[Math.floor(Math.random() * answers.length)]}` });
     }
 
     if (commandName === "warn") {
