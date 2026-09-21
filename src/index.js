@@ -14,7 +14,9 @@ const {
 } = require("discord.js");
 const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
 const play = require("play-dl");
-const ffmpegPath = require("ffmpeg-static");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "settings.json");
@@ -114,9 +116,14 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     try {
-      const results = await play.search(query, { limit: 1, source: { youtube: "video" } });
-      const video = results[0];
-      if (!video) return message.reply("❌ I couldn't find that song.");
+      let url = query;
+      let title = query;
+      if (!/^https?:\/\//i.test(query)) {
+        const results = await play.search(query, { limit: 1, source: { youtube: "video" } });
+        if (!results.length) return message.reply("❌ I couldn't find that song.");
+        url = results[0].url;
+        title = results[0].title;
+      }
 
       let connection = getVoiceConnection(message.guild.id);
       if (!connection || connection.joinConfig.channelId !== voiceChannel.id) {
@@ -133,21 +140,24 @@ client.on(Events.MessageCreate, async (message) => {
       if (!player) {
         player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
         musicPlayers.set(message.guild.id, player);
-        connection.subscribe(player);
         player.on("error", error => console.error("EMOX music error:", error));
-        player.on(AudioPlayerStatus.Idle, () => {});
-      } else {
-        connection.subscribe(player);
       }
+      connection.subscribe(player);
 
-      const stream = await play.stream(video.url, { quality: 2, discordPlayerCompatibility: true });
-      const resource = createAudioResource(stream.stream, { inputType: stream.type, metadata: { title: video.title } });
+      const { stdout } = await execFileAsync("npx", ["-y", "yt-dlp", "-f", "bestaudio[ext=webm]/bestaudio", "--no-playlist", "-g", url], {
+        timeout: 60000,
+        maxBuffer: 1024 * 1024
+      });
+      const audioUrl = stdout.trim().split(/\r?\n/)[0];
+      if (!audioUrl) throw new Error("yt-dlp returned no audio URL.");
+
+      const resource = createAudioResource(audioUrl);
       player.play(resource);
 
-      return message.reply(`🎵 Now playing: **${video.title}**\n🔗 ${video.url}`);
+      return message.reply(`🎵 Now playing: **${title}**`);
     } catch (error) {
       console.error("EMOX play error:", error);
-      return message.reply("❌ I couldn't play that song. Please try another song name.");
+      return message.reply("❌ I couldn't play that song right now. Please try again.");
     }
   }
 
