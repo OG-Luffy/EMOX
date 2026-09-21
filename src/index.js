@@ -44,9 +44,6 @@ const guildData = (guildId) => {
   return data[guildId];
 };
 
-const replyError = (interaction, message) =>
-  interaction.reply({ content: "❌ " + message, ephemeral: true });
-
 function designAdvice(topic) {
   const t = topic.toLowerCase();
   if (t.includes("thumbnail")) return "Build around one main subject, 2–4 words of large text, strong contrast, and a clear foreground/background separation. Check readability at phone size.";
@@ -84,7 +81,7 @@ client.once(Events.ClientReady, async (c) => {
   console.log(" Logged in as:", c.user.tag);
   console.log(" Servers:", c.guilds.cache.size);
   console.log("━━━━━━━━━━━━━━━━━━━━");
-  c.user.setActivity("/help • EMOX", { type: 0 });
+  c.user.setActivity("Without Emo", { type: 0 });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
