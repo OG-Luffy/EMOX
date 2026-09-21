@@ -2,7 +2,7 @@ services:
   - type: worker
     name: emox
     runtime: node
-    buildCommand: npm ci
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: DISCORD_TOKEN
