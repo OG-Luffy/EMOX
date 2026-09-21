@@ -6,6 +6,12 @@ const reasonOption = (builder) => builder.addStringOption(o => o.setName("reason
 
 const commands = [
   new SlashCommandBuilder().setName("ping").setDescription("Check EMOX latency"),
+  new SlashCommandBuilder().setName("devsettings").setDescription("Developer-only moderation settings")
+    .addSubcommand(s=>s.setName("view").setDescription("View moderation settings"))
+    .addSubcommand(s=>s.setName("automod").setDescription("Toggle spam AutoMod").addBooleanOption(o=>o.setName("enabled").setDescription("Enable AutoMod").setRequired(true)))
+    .addSubcommand(s=>s.setName("welcome").setDescription("Set or disable welcome channel").addChannelOption(o=>o.setName("channel").setDescription("Leave empty to disable").addChannelTypes(ChannelType.GuildText).setRequired(false)))
+    .addSubcommand(s=>s.setName("logs").setDescription("Set or disable moderation log channel").addChannelOption(o=>o.setName("channel").setDescription("Leave empty to disable").addChannelTypes(ChannelType.GuildText).setRequired(false)))
+    .addSubcommand(s=>s.setName("clearwarnings").setDescription("Clear a user's warnings").addUserOption(o=>o.setName("user").setDescription("Target user").setRequired(true))),
   new SlashCommandBuilder().setName("gfx").setDescription("Get graphic design advice").addStringOption(o=>o.setName("topic").setDescription("e.g. thumbnail, logo, banner, overlay").setRequired(false)),
   new SlashCommandBuilder().setName("gaming").setDescription("Get gaming advice").addStringOption(o=>o.setName("topic").setDescription("e.g. FPS, sensitivity, streaming").setRequired(false)),
   new SlashCommandBuilder().setName("help").setDescription("Show EMOX features"),
