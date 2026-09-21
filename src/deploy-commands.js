@@ -16,12 +16,19 @@ const commands = [
     .addIntegerOption(o=>o.setName("minutes").setDescription("Timeout duration in minutes").setMinValue(1).setMaxValue(40320).setRequired(true))),
   reasonOption(userOption(new SlashCommandBuilder().setName("warn").setDescription("Warn a member"))),
   new SlashCommandBuilder().setName("purge").setDescription("Delete messages").addIntegerOption(o=>o.setName("amount").setDescription("1-100 messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("warnings").setDescription("View a user's warnings").addUserOption(o=>o.setName("user").setDescription("User").setRequired(true)),
+  new SlashCommandBuilder().setName("clearwarnings").setDescription("Clear a user's warnings").addUserOption(o=>o.setName("user").setDescription("User").setRequired(true)),
+  new SlashCommandBuilder().setName("automod").setDescription("Enable or disable spam AutoMod").addBooleanOption(o=>o.setName("enabled").setDescription("Enable AutoMod").setRequired(true)),
   new SlashCommandBuilder().setName("ticket").setDescription("Post the ticket panel"),
   new SlashCommandBuilder().setName("welcome").setDescription("Set the welcome channel").addChannelOption(o=>o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("logchannel").setDescription("Set the moderation log channel").addChannelOption(o=>o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("rank").setDescription("Show your XP"),
   new SlashCommandBuilder().setName("balance").setDescription("Show your coin balance"),
   new SlashCommandBuilder().setName("daily").setDescription("Claim 250 daily coins"),
+  new SlashCommandBuilder().setName("work").setDescription("Work for coins"),
+  new SlashCommandBuilder().setName("pay").setDescription("Pay another user").addUserOption(o=>o.setName("user").setDescription("Recipient").setRequired(true)).addIntegerOption(o=>o.setName("amount").setDescription("Amount").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder().setName("leaderboard").setDescription("Show the XP leaderboard"),
+  new SlashCommandBuilder().setName("8ball").setDescription("Ask the magic 8-ball").addStringOption(o=>o.setName("question").setDescription("Your question").setRequired(true)),
   new SlashCommandBuilder().setName("giveaway").setDescription("Start a giveaway").addIntegerOption(o=>o.setName("minutes").setDescription("Duration in minutes").setMinValue(1).setMaxValue(10080).setRequired(true)).addStringOption(o=>o.setName("prize").setDescription("Prize").setRequired(true))
 ].map(c => c.toJSON());
 
