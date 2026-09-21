@@ -12,6 +12,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
+const { joinVoiceChannel, getVoiceConnection } = require("@discordjs/voice");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "settings.json");
@@ -94,6 +95,39 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
+
+  const prefix = "!";
+  if (message.content.toLowerCase().trim() === "!join") {
+    const voiceChannel = message.member?.voice?.channel;
+    if (!voiceChannel) {
+      return message.reply("❌ Pehle mujhe join karne ke liye khud ek voice channel mein join ho jao.");
+    }
+
+    const permissions = voiceChannel.permissionsFor(message.guild.members.me);
+    if (!permissions?.has(PermissionFlagsBits.Connect) || !permissions?.has(PermissionFlagsBits.Speak)) {
+      return message.reply("❌ Mujhe is voice channel mein **Connect** aur **Speak** permission chahiye.");
+    }
+
+    try {
+      joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+        selfDeaf: true
+      });
+      return message.reply("🎵 Joined your voice channel!");
+    } catch (error) {
+      console.error(error);
+      return message.reply("❌ Voice channel join nahi kar paya.");
+    }
+  }
+
+  if (message.content.toLowerCase().trim() === "!leave") {
+    const connection = getVoiceConnection(message.guild.id);
+    if (!connection) return message.reply("❌ Main kisi voice channel mein nahi hoon.");
+    connection.destroy();
+    return message.reply("👋 Left the voice channel.");
+  }
   const cfg = guildData(message.guild.id);
 
   const autoreply = Object.entries(cfg.autoreplies || {}).find(([trigger]) => message.content.toLowerCase().includes(trigger.toLowerCase()));
