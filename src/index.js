@@ -12,7 +12,9 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
-const { joinVoiceChannel, getVoiceConnection } = require("@discordjs/voice");
+const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
+const play = require("play-dl");
+const ffmpegPath = require("ffmpeg-static");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "settings.json");
@@ -29,6 +31,7 @@ const data = loadData();
 const cooldowns = new Map();
 const giveaways = new Map();
 const spamTracker = new Map();
+const musicPlayers = new Map();
 let developerId = null;
 
 const client = new Client({
@@ -98,6 +101,56 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
 
   const prefix = "!";
+  if (message.content.toLowerCase().startsWith("!play")) {
+    const query = message.content.slice("!play".length).trim();
+    if (!query) return message.reply("❌ Please provide a song name. Example: \`!play Believer\`");
+
+    const voiceChannel = message.member?.voice?.channel;
+    if (!voiceChannel) return message.reply("❌ Please join a voice channel first, then use \`!play\`.");
+
+    const permissions = voiceChannel.permissionsFor(message.guild.members.me);
+    if (!permissions?.has(PermissionFlagsBits.Connect) || !permissions?.has(PermissionFlagsBits.Speak)) {
+      return message.reply("❌ I need **Connect** and **Speak** permissions in this voice channel.");
+    }
+
+    try {
+      const results = await play.search(query, { limit: 1, source: { youtube: "video" } });
+      const video = results[0];
+      if (!video) return message.reply("❌ I couldn't find that song.");
+
+      let connection = getVoiceConnection(message.guild.id);
+      if (!connection || connection.joinConfig.channelId !== voiceChannel.id) {
+        if (connection) connection.destroy();
+        connection = joinVoiceChannel({
+          channelId: voiceChannel.id,
+          guildId: message.guild.id,
+          adapterCreator: message.guild.voiceAdapterCreator,
+          selfDeaf: true
+        });
+      }
+
+      let player = musicPlayers.get(message.guild.id);
+      if (!player) {
+        player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
+        musicPlayers.set(message.guild.id, player);
+        connection.subscribe(player);
+        player.on("error", error => console.error("EMOX music error:", error));
+        player.on(AudioPlayerStatus.Idle, () => {});
+      } else {
+        connection.subscribe(player);
+      }
+
+      const stream = await play.stream(video.url, { quality: 2, discordPlayerCompatibility: true });
+      const resource = createAudioResource(stream.stream, { inputType: stream.type, metadata: { title: video.title } });
+      player.play(resource);
+
+      return message.reply(`🎵 Now playing: **${video.title}**\n🔗 ${video.url}`);
+    } catch (error) {
+      console.error("EMOX play error:", error);
+      return message.reply("❌ I couldn't play that song. Please try another song name.");
+    }
+  }
+
   if (message.content.toLowerCase().trim() === "!join") {
     const voiceChannel = message.member?.voice?.channel;
     if (!voiceChannel) {
