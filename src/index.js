@@ -101,7 +101,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.content.toLowerCase().trim() === "!join") {
     const voiceChannel = message.member?.voice?.channel;
     if (!voiceChannel) {
-      return message.reply("❌ Pehle mujhe join karne ke liye khud ek voice channel mein join ho jao.");
+      return message.reply("❌ Please join a voice channel first, then use `!join`.");
     }
 
     const permissions = voiceChannel.permissionsFor(message.guild.members.me);
@@ -119,13 +119,13 @@ client.on(Events.MessageCreate, async (message) => {
       return message.reply("🎵 Joined your voice channel!");
     } catch (error) {
       console.error(error);
-      return message.reply("❌ Voice channel join nahi kar paya.");
+      return message.reply("❌ I could not join the voice channel.");
     }
   }
 
   if (message.content.toLowerCase().trim() === "!leave") {
     const connection = getVoiceConnection(message.guild.id);
-    if (!connection) return message.reply("❌ Main kisi voice channel mein nahi hoon.");
+    if (!connection) return message.reply("❌ I am not in a voice channel.");
     connection.destroy();
     return message.reply("👋 Left the voice channel.");
   }
