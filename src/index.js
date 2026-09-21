@@ -124,6 +124,14 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    const originalReply = interaction.reply.bind(interaction);
+    interaction.reply = async (options) => {
+      const result = await originalReply(options);
+      if (!options?.ephemeral) {
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 8000);
+      }
+      return result;
+    };
     if (interaction.isButton()) {
       if (interaction.customId === "emox_ticket_create") {
         const existing = interaction.guild.channels.cache.find(
