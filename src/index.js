@@ -26,7 +26,8 @@ const saveData = () => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)
 
 const data = loadData();
 const cooldowns = new Map();
-const giveaways = new Map();\nconst spamTracker = new Map();
+const giveaways = new Map();
+const spamTracker = new Map();
 
 const client = new Client({
   intents: [
