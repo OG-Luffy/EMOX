@@ -28,6 +28,7 @@ const data = loadData();
 const cooldowns = new Map();
 const giveaways = new Map();
 const spamTracker = new Map();
+let developerId = null;
 
 const client = new Client({
   intents: [
@@ -71,7 +72,13 @@ async function log(guild, message) {
   if (channel?.isTextBased()) channel.send({ content: "📝 " + message }).catch(() => {});
 }
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
+  try {
+    const app = await c.application.fetch();
+    developerId = app.owner?.id || null;
+  } catch (error) {
+    console.error("Could not resolve EMOX developer:", error);
+  }
   console.log("━━━━━━━━━━━━━━━━━━━━");
   console.log(" EMOX is online!");
   console.log(" Logged in as:", c.user.tag);
@@ -177,6 +184,55 @@ client.on(Events.InteractionCreate, async (interaction) => {
           { name: "🖥️ Streaming", value: "Tune encoder, bitrate, resolution and frame rate for your hardware and connection." }
         ).setFooter({ text: "EMOX • Gaming Assistant" });
       return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "devsettings") {
+      if (!developerId || interaction.user.id !== developerId)
+        return replyError(interaction, "Developer-only settings.");
+
+      const action = interaction.options.getSubcommand();
+      const cfg = guildData(guild.id);
+
+      if (action === "view") {
+        const embed = new EmbedBuilder()
+          .setTitle("🛠️ EMOX • Developer Moderation Settings")
+          .addFields(
+            { name: "🛡️ AutoMod", value: cfg.automod ? "🟢 Enabled" : "🔴 Disabled", inline: true },
+            { name: "👋 Welcome", value: cfg.welcomeChannel ? `<#${cfg.welcomeChannel}>` : "Not set", inline: true },
+            { name: "📝 Mod Logs", value: cfg.logChannel ? `<#${cfg.logChannel}>` : "Not set", inline: true }
+          )
+          .setFooter({ text: "EMOX • Developer controls" });
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
+      if (action === "automod") {
+        const enabled = interaction.options.getBoolean("enabled", true);
+        cfg.automod = enabled;
+        saveData();
+        return interaction.reply({ content: `🛡️ Developer setting: AutoMod is now **${enabled ? "ON" : "OFF"}**.`, ephemeral: true });
+      }
+
+      if (action === "welcome") {
+        const channel = interaction.options.getChannel("channel");
+        cfg.welcomeChannel = channel ? channel.id : null;
+        saveData();
+        return interaction.reply({ content: channel ? `👋 Welcome channel set to <#${channel.id}>.` : "👋 Welcome channel disabled.", ephemeral: true });
+      }
+
+      if (action === "logs") {
+        const channel = interaction.options.getChannel("channel");
+        cfg.logChannel = channel ? channel.id : null;
+        saveData();
+        return interaction.reply({ content: channel ? `📝 Moderation log channel set to <#${channel.id}>.` : "📝 Moderation logs disabled.", ephemeral: true });
+      }
+
+      if (action === "clearwarnings") {
+        const user = interaction.options.getUser("user", true);
+        delete cfg.warnings[user.id];
+        saveData();
+        await log(guild, `DEV: cleared warnings for ${user.tag}`);
+        return interaction.reply({ content: `✅ Developer cleared all warnings for **${user.tag}**.`, ephemeral: true });
+      }
     }
 
     if (commandName === "ping")
