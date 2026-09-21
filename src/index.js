@@ -45,6 +45,24 @@ const guildData = (guildId) => {
 const replyError = (interaction, message) =>
   interaction.reply({ content: "❌ " + message, ephemeral: true });
 
+function designAdvice(topic) {
+  const t = topic.toLowerCase();
+  if (t.includes("thumbnail")) return "Build around one main subject, 2–4 words of large text, strong contrast, and a clear foreground/background separation. Check readability at phone size.";
+  if (t.includes("logo")) return "Start with a simple silhouette, test it in monochrome, then add color. Make sure it works as a tiny profile icon and as a large mark.";
+  if (t.includes("banner")) return "Keep important text inside safe areas, establish one visual hierarchy, and match the banner to the brand's primary colors and typography.";
+  if (t.includes("overlay")) return "Keep gameplay space clear, use consistent panels and typography, and avoid excessive animation that distracts from the stream.";
+  return "Use hierarchy, contrast, alignment, repetition and whitespace. Start simple, then add effects only when they improve the message.";
+}
+
+function gamingAdvice(topic) {
+  const t = topic.toLowerCase();
+  if (t.includes("sensitivity")) return "Sensitivity depends on device, FPS, touch layout and play style. Change one setting at a time and test with a consistent drill before locking it in.";
+  if (t.includes("fps") || t.includes("performance")) return "Reduce expensive effects first, keep a stable frame-rate target, watch temperatures, and avoid settings that cause thermal throttling.";
+  if (t.includes("stream")) return "Choose resolution and bitrate based on your upload bandwidth and encoder hardware. Test locally before going live.";
+  if (t.includes("thumbnail")) return "Use the actual game's visual language while keeping your own branding: one focal subject, high contrast and readable text.";
+  return "I can help break down controls, performance, streaming, recording, content strategy and gaming graphics.";
+}
+
 async function log(guild, message) {
   const cfg = guildData(guild.id);
   if (!cfg.logChannel) return;
@@ -129,6 +147,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const { commandName } = interaction;
     const member = interaction.member;
     const guild = interaction.guild;
+
+    if (commandName === "gfx") {
+      const topic = interaction.options.getString("topic");
+      const embed = new EmbedBuilder().setTitle("🎨 EMOX • Graphic Design Knowledge")
+        .setDescription(topic
+          ? `**${topic}**\n\n${designAdvice(topic)}`
+          : "I can help with thumbnails, logos, banners, overlays, branding, typography, color theory, composition, Photoshop, Lightroom, CapCut and Alight Motion.")
+        .addFields(
+          { name: "🖼️ Thumbnails", value: "Strong focal subject, readable text, contrast, depth and clean hierarchy." },
+          { name: "🎯 Branding", value: "Keep logo shapes simple, scalable and recognizable at small sizes." },
+          { name: "📐 Composition", value: "Use visual hierarchy, spacing, alignment and a clear focal point." },
+          { name: "🌈 Color", value: "Use a controlled palette and sufficient contrast for readability." }
+        ).setFooter({ text: "EMOX • Graphic Design Assistant" });
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "gaming") {
+      const topic = interaction.options.getString("topic");
+      const embed = new EmbedBuilder().setTitle("🎮 EMOX • Gaming Knowledge")
+        .setDescription(topic
+          ? `**${topic}**\n\n${gamingAdvice(topic)}`
+          : "I can help with gaming setup, FPS optimization, controls, sensitivity concepts, streaming, recording, thumbnails, esports branding and game content.")
+        .addFields(
+          { name: "🎯 Performance", value: "Prioritize stable FPS, sensible graphics settings and low input latency." },
+          { name: "📱 Mobile Gaming", value: "Balance resolution, frame rate, thermal load, battery and touch controls." },
+          { name: "🎥 Content", value: "Pair strong gameplay with clear thumbnails, titles and consistent branding." },
+          { name: "🖥️ Streaming", value: "Tune encoder, bitrate, resolution and frame rate for your hardware and connection." }
+        ).setFooter({ text: "EMOX • Gaming Assistant" });
+      return interaction.reply({ embeds: [embed] });
+    }
 
     if (commandName === "ping")
       return interaction.reply({ content: `🏓 Pong! ${client.ws.ping}ms` });
