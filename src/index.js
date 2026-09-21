@@ -13,10 +13,7 @@ const {
   ButtonStyle
 } = require("discord.js");
 const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
-const play = require("play-dl");
-const { execFile } = require("child_process");
-const { promisify } = require("util");
-const execFileAsync = promisify(execFile);
+const youtubedl = require("youtube-dl-exec");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "settings.json");
@@ -116,14 +113,24 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     try {
-      let url = query;
-      let title = query;
-      if (!/^https?:\/\//i.test(query)) {
-        const results = await play.search(query, { limit: 1, source: { youtube: "video" } });
-        if (!results.length) return message.reply("❌ I couldn't find that song.");
-        url = results[0].url;
-        title = results[0].title;
-      }
+      const target = /^https?:\/\//i.test(query) ? query : \`ytsearch1:${query}\`;
+      const info = await youtubedl(target, {
+        dumpSingleJson: true,
+        noPlaylist: true,
+        noWarnings: true,
+        preferFreeFormats: true
+      });
+      const video = info.entries?.[0] || info;
+      if (!video?.webpage_url && !video?.url) return message.reply("❌ I couldn't find that song.");
+
+      const videoUrl = video.webpage_url || video.url;
+      const title = video.title || query;
+      const audioUrl = await youtubedl(videoUrl, {
+        getUrl: true,
+        format: "bestaudio[ext=webm]/bestaudio",
+        noPlaylist: true,
+        noWarnings: true
+      });
 
       let connection = getVoiceConnection(message.guild.id);
       if (!connection || connection.joinConfig.channelId !== voiceChannel.id) {
@@ -144,14 +151,7 @@ client.on(Events.MessageCreate, async (message) => {
       }
       connection.subscribe(player);
 
-      const { stdout } = await execFileAsync("npx", ["-y", "yt-dlp", "-f", "bestaudio[ext=webm]/bestaudio", "--no-playlist", "-g", url], {
-        timeout: 60000,
-        maxBuffer: 1024 * 1024
-      });
-      const audioUrl = stdout.trim().split(/\r?\n/)[0];
-      if (!audioUrl) throw new Error("yt-dlp returned no audio URL.");
-
-      const resource = createAudioResource(audioUrl);
+      const resource = createAudioResource(String(audioUrl).trim());
       player.play(resource);
 
       return message.reply(`🎵 Now playing: **${title}**`);
