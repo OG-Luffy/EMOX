@@ -113,7 +113,7 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     try {
-      const target = /^https?:\/\//i.test(query) ? query : \`ytsearch1:${query}\`;
+      const target = /^https?:\/\//i.test(query) ? query : `ytsearch1:${query}`;
       const info = await youtubedl(target, {
         dumpSingleJson: true,
         noPlaylist: true,
