@@ -81,7 +81,7 @@ client.once(Events.ClientReady, async (c) => {
   console.log(" Logged in as:", c.user.tag);
   console.log(" Servers:", c.guilds.cache.size);
   console.log("━━━━━━━━━━━━━━━━━━━━");
-  c.user.setActivity("Without Emo", { type: 0 });
+  c.user.setActivity("With Emo", { type: 0 });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
