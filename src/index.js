@@ -106,7 +106,7 @@ client.on(Events.MessageCreate, async (message) => {
 
     const permissions = voiceChannel.permissionsFor(message.guild.members.me);
     if (!permissions?.has(PermissionFlagsBits.Connect) || !permissions?.has(PermissionFlagsBits.Speak)) {
-      return message.reply("❌ Mujhe is voice channel mein **Connect** aur **Speak** permission chahiye.");
+      return message.reply("❌ I need Connect and Speak permissions in this voice channel to join.");
     }
 
     try {
