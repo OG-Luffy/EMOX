@@ -1,13 +1,32 @@
 require("dotenv").config();
-
+const fs = require("fs");
+const path = require("path");
 const {
   Client,
   GatewayIntentBits,
-  Collection,
   Events,
   EmbedBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ChannelType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_FILE = path.join(DATA_DIR, "settings.json");
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
+
+const loadData = () => {
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); }
+  catch { return {}; }
+};
+const saveData = () => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+
+const data = loadData();
+const cooldowns = new Map();
+const giveaways = new Map();
 
 const client = new Client({
   intents: [
@@ -18,38 +37,225 @@ const client = new Client({
   ]
 });
 
-client.commands = new Collection();
+const guildData = (guildId) => {
+  data[guildId] ??= { warnings: {}, xp: {}, economy: {}, welcomeChannel: null, logChannel: null };
+  return data[guildId];
+};
 
-client.once(Events.ClientReady, (readyClient) => {
+const replyError = (interaction, message) =>
+  interaction.reply({ content: "❌ " + message, ephemeral: true });
+
+async function log(guild, message) {
+  const cfg = guildData(guild.id);
+  if (!cfg.logChannel) return;
+  const channel = guild.channels.cache.get(cfg.logChannel);
+  if (channel?.isTextBased()) channel.send({ content: "📝 " + message }).catch(() => {});
+}
+
+client.once(Events.ClientReady, (c) => {
   console.log("━━━━━━━━━━━━━━━━━━━━");
   console.log(" EMOX is online!");
-  console.log(" Logged in as:", readyClient.user.tag);
-  console.log(" Servers:", readyClient.guilds.cache.size);
+  console.log(" Logged in as:", c.user.tag);
+  console.log(" Servers:", c.guilds.cache.size);
   console.log("━━━━━━━━━━━━━━━━━━━━");
+  c.user.setActivity("/help • EMOX", { type: 0 });
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  const cfg = guildData(member.guild.id);
+  if (!cfg.welcomeChannel) return;
+  const channel = member.guild.channels.cache.get(cfg.welcomeChannel);
+  if (!channel?.isTextBased()) return;
+  channel.send({ content: `👋 Welcome <@${member.id}> to **${member.guild.name}**!` }).catch(() => {});
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
+  const cfg = guildData(message.guild.id);
+  const key = `${message.guild.id}:${message.author.id}`;
+  const now = Date.now();
+  if ((cooldowns.get(key) || 0) > now) return;
+  cooldowns.set(key, now + 60000);
+
+  cfg.xp[message.author.id] = (cfg.xp[message.author.id] || 0) + Math.floor(Math.random() * 8) + 5;
+  cfg.economy[message.author.id] ??= 100;
+  saveData();
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+  try {
+    if (interaction.isButton()) {
+      if (interaction.customId === "emox_ticket_create") {
+        const existing = interaction.guild.channels.cache.find(
+          c => c.name === `ticket-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 18)}`
+        );
+        if (existing) return replyError(interaction, "You already have a ticket.");
+        const channel = await interaction.guild.channels.create({
+          name: `ticket-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 18)}`,
+          type: ChannelType.GuildText,
+          permissionOverwrites: [
+            { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+          ]
+        });
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("emox_ticket_close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
+        );
+        await channel.send({ content: `🎫 <@${interaction.user.id}>`, embeds: [
+          new EmbedBuilder().setTitle("🎫 EMOX Support").setDescription("Describe your issue. A staff member will help you soon.")
+        ], components: [row] });
+        return interaction.reply({ content: `✅ Ticket created: <#${channel.id}>`, ephemeral: true });
+      }
+      if (interaction.customId === "emox_ticket_close") {
+        await interaction.reply({ content: "🔒 Closing ticket..." });
+        setTimeout(() => interaction.channel.delete().catch(() => {}), 1500);
+        return;
+      }
+    }
 
-  if (interaction.commandName === "ping") {
-    return interaction.reply({
-      content: "🏓 Pong! EMOX latency: " + client.ws.ping + "ms"
-    });
-  }
+    if (!interaction.isChatInputCommand()) return;
+    const { commandName } = interaction;
+    const member = interaction.member;
+    const guild = interaction.guild;
 
-  if (interaction.commandName === "help") {
-    const embed = new EmbedBuilder()
-      .setTitle("🤖 EMOX")
-      .setDescription("One Bot. Everything You Need.")
-      .addFields(
-        { name: "🛡️ Moderation", value: "Ban, kick, timeout, warn, purge" },
-        { name: "🎫 Community", value: "Tickets, welcome, roles, logs" },
-        { name: "🎉 Fun", value: "Giveaways, games, levels" },
-        { name: "⚙️ Utility", value: "Server info, user info, ping" }
-      )
-      .setFooter({ text: "EMOX • All-in-one Discord Bot" });
+    if (commandName === "ping")
+      return interaction.reply({ content: `🏓 Pong! ${client.ws.ping}ms` });
 
-    return interaction.reply({ embeds: [embed] });
+    if (commandName === "help") {
+      const embed = new EmbedBuilder().setTitle("🤖 EMOX").setDescription("**One Bot. Everything You Need.**")
+        .addFields(
+          { name: "🛡️ Moderation", value: "/ban /kick /timeout /warn /purge" },
+          { name: "🎫 Community", value: "/ticket /welcome /logchannel" },
+          { name: "🎉 Fun", value: "/giveaway" },
+          { name: "🏆 Progress", value: "/rank /balance /daily" },
+          { name: "⚙️ Utility", value: "/serverinfo /userinfo /avatar" }
+        ).setFooter({ text: "EMOX • All-in-one Discord Bot" });
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "serverinfo") {
+      return interaction.reply({ embeds: [new EmbedBuilder().setTitle("📊 " + guild.name)
+        .addFields(
+          { name: "Members", value: String(guild.memberCount), inline: true },
+          { name: "Channels", value: String(guild.channels.cache.size), inline: true },
+          { name: "Created", value: guild.createdAt.toDateString(), inline: true }
+        )] });
+    }
+
+    if (commandName === "userinfo") {
+      const user = interaction.options.getUser("user") || interaction.user;
+      return interaction.reply({ embeds: [new EmbedBuilder().setTitle("👤 " + user.tag)
+        .setThumbnail(user.displayAvatarURL({ size: 256 }))
+        .addFields({ name: "ID", value: user.id }, { name: "Created", value: user.createdAt.toDateString() })] });
+    }
+
+    if (commandName === "avatar") {
+      const user = interaction.options.getUser("user") || interaction.user;
+      return interaction.reply({ content: user.displayAvatarURL({ size: 1024, extension: "png" }) });
+    }
+
+    if (["ban", "kick", "timeout"].includes(commandName)) {
+      if (!member.permissions.has(PermissionFlagsBits.ModerateMembers) && commandName !== "ban")
+        return replyError(interaction, "You need moderation permissions.");
+      if (commandName === "ban" && !member.permissions.has(PermissionFlagsBits.BanMembers))
+        return replyError(interaction, "You need Ban Members permission.");
+      const user = interaction.options.getUser("user", true);
+      const target = await guild.members.fetch(user.id).catch(() => null);
+      const reason = interaction.options.getString("reason") || "No reason provided";
+      if (!target) return replyError(interaction, "That user is not in this server.");
+      if (!target.manageable) return replyError(interaction, "I cannot manage that member.");
+      if (commandName === "ban") await target.ban({ reason });
+      if (commandName === "kick") await target.kick(reason);
+      if (commandName === "timeout") await target.timeout(interaction.options.getInteger("minutes", true) * 60000, reason);
+      await log(guild, `${commandName.toUpperCase()}: ${user.tag} — ${reason}`);
+      return interaction.reply({ content: `✅ ${user.tag} has been ${commandName === "timeout" ? "timed out" : commandName + "ed"}.` });
+    }
+
+    if (commandName === "warn") {
+      if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction, "You need moderation permissions.");
+      const user = interaction.options.getUser("user", true);
+      const reason = interaction.options.getString("reason") || "No reason provided";
+      const cfg = guildData(guild.id);
+      cfg.warnings[user.id] ??= [];
+      cfg.warnings[user.id].push({ reason, by: interaction.user.id, at: Date.now() });
+      saveData();
+      await log(guild, `WARN: ${user.tag} — ${reason}`);
+      return interaction.reply({ content: `⚠️ Warned **${user.tag}**. Total warnings: ${cfg.warnings[user.id].length}` });
+    }
+
+    if (commandName === "purge") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) return replyError(interaction, "You need Manage Messages permission.");
+      const amount = interaction.options.getInteger("amount", true);
+      await interaction.channel.bulkDelete(amount, true);
+      return interaction.reply({ content: `🧹 Deleted up to ${amount} messages.`, ephemeral: true });
+    }
+
+    if (commandName === "ticket") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return replyError(interaction, "You need Manage Channels permission.");
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("emox_ticket_create").setLabel("Create Ticket").setEmoji("🎫").setStyle(ButtonStyle.Primary)
+      );
+      return interaction.reply({ embeds: [new EmbedBuilder().setTitle("🎫 EMOX Tickets").setDescription("Press the button below to open a private support ticket.")], components: [row] });
+    }
+
+    if (commandName === "welcome" || commandName === "logchannel") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server permission.");
+      const channel = interaction.options.getChannel("channel", true);
+      const cfg = guildData(guild.id);
+      if (commandName === "welcome") cfg.welcomeChannel = channel.id;
+      else cfg.logChannel = channel.id;
+      saveData();
+      return interaction.reply({ content: `✅ ${commandName === "welcome" ? "Welcome" : "Log"} channel set to <#${channel.id}>.` });
+    }
+
+    if (commandName === "rank") {
+      const cfg = guildData(guild.id);
+      const xp = cfg.xp[interaction.user.id] || 0;
+      return interaction.reply({ content: `🏆 **${interaction.user.username}** has **${xp} XP**.` });
+    }
+
+    if (commandName === "balance") {
+      const cfg = guildData(guild.id);
+      const balance = cfg.economy[interaction.user.id] ?? 100;
+      cfg.economy[interaction.user.id] = balance;
+      saveData();
+      return interaction.reply({ content: `💰 Your balance is **${balance} coins**.` });
+    }
+
+    if (commandName === "daily") {
+      const cfg = guildData(guild.id);
+      cfg.economy[interaction.user.id] ??= 100;
+      cfg.economy[interaction.user.id] += 250;
+      saveData();
+      return interaction.reply({ content: "🎁 You received **250 coins** from your daily reward!" });
+    }
+
+    if (commandName === "giveaway") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server permission.");
+      const minutes = interaction.options.getInteger("minutes", true);
+      const prize = interaction.options.getString("prize", true);
+      const endsAt = Date.now() + minutes * 60000;
+      const msg = await interaction.reply({ content: `🎉 **GIVEAWAY** — ${prize}\nReact with 🎉 to enter!\nEnds <t:${Math.floor(endsAt / 1000)}:R>`, fetchReply: true });
+      await msg.react("🎉");
+      giveaways.set(msg.id, { channelId: msg.channel.id, prize, endsAt });
+      setTimeout(async () => {
+        const g = giveaways.get(msg.id);
+        if (!g) return;
+        const channel = client.channels.cache.get(g.channelId);
+        const giveawayMsg = await channel?.messages.fetch(msg.id).catch(() => null);
+        const reaction = giveawayMsg?.reactions.cache.get("🎉");
+        const users = reaction ? (await reaction.users.fetch()).filter(u => !u.bot).map(u => u) : [];
+        const winner = users.length ? users[Math.floor(Math.random() * users.length)] : null;
+        if (winner) channel.send(`🎊 Giveaway ended! **${winner.tag}** won **${g.prize}**!`);
+        else channel?.send(`🎊 Giveaway ended for **${g.prize}**, but nobody entered.`);
+        giveaways.delete(msg.id);
+      }, minutes * 60000);
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+    if (interaction.replied || interaction.deferred) interaction.followUp({ content: "❌ Something went wrong.", ephemeral: true }).catch(() => {});
+    else interaction.reply({ content: "❌ Something went wrong.", ephemeral: true }).catch(() => {});
   }
 });
 
