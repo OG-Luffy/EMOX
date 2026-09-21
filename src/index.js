@@ -40,7 +40,7 @@ const client = new Client({
 });
 
 const guildData = (guildId) => {
-  data[guildId] ??= { warnings: {}, xp: {}, economy: {}, welcomeChannel: null, logChannel: null, automod: false, lastDaily: {}, lastWork: {} };
+  data[guildId] ??= { warnings: {}, xp: {}, economy: {}, welcomeChannel: null, logChannel: null, automod: false, autoreplies: {}, lastDaily: {}, lastWork: {} };
   return data[guildId];
 };
 
@@ -98,6 +98,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
   const cfg = guildData(message.guild.id);
+
+  const autoreply = Object.entries(cfg.autoreplies || {}).find(([trigger]) => message.content.toLowerCase().includes(trigger.toLowerCase()));
+  if (autoreply) {
+    await message.reply(autoreply[1]).catch(() => {});
+  }
 
   if (cfg.automod && !message.member?.permissions.has(PermissionFlagsBits.ManageMessages)) {
     const spamKey = `${message.guild.id}:${message.author.id}`;
@@ -232,6 +237,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
         saveData();
         await log(guild, `DEV: cleared warnings for ${user.tag}`);
         return interaction.reply({ content: `✅ Developer cleared all warnings for **${user.tag}**.`, ephemeral: true });
+      }
+
+      if (action === "autoreply") {
+        const trigger = interaction.options.getString("trigger", true).trim().toLowerCase();
+        const reply = interaction.options.getString("reply", true).trim();
+        cfg.autoreplies[trigger] = reply;
+        saveData();
+        return interaction.reply({ content: `🤖 Auto-reply set: **${trigger}** → ${reply}`, ephemeral: true });
+      }
+
+      if (action === "removeautoreply") {
+        const trigger = interaction.options.getString("trigger", true).trim().toLowerCase();
+        if (!cfg.autoreplies[trigger]) return replyError(interaction, "That auto-reply does not exist.");
+        delete cfg.autoreplies[trigger];
+        saveData();
+        return interaction.reply({ content: `🗑️ Removed auto-reply for **${trigger}**.`, ephemeral: true });
+      }
+
+      if (action === "autoreplies") {
+        const rows = Object.entries(cfg.autoreplies);
+        const text = rows.length ? rows.map(([t,r]) => `• **${t}** → ${r}`).join("\n").slice(0, 3900) : "No auto-replies configured.";
+        return interaction.reply({ embeds: [new EmbedBuilder().setTitle("🤖 EMOX • Auto Replies").setDescription(text)], ephemeral: true });
       }
     }
 
